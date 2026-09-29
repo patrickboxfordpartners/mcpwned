@@ -23,3 +23,4 @@ integrations: []
 sub_agents: []
 builtins:
   - name: ui
+  - name: memory
