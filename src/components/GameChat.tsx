@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import {
-  Send,
-  Lightbulb,
-  ArrowRight,
-  Menu,
-  CheckCircle,
-  Shield,
-} from "lucide-react";
 import { startLevel, sendMessage, getHint } from "../lib/api";
+import { speakWopr, isVoiceEnabled, setVoiceEnabled } from "../lib/voice";
 
 interface Props {
   levelId: number;
@@ -33,7 +26,9 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
   const [attempts, setAttempts] = useState(0);
   const [title, setTitle] = useState("");
   const [owasp, setOwasp] = useState("");
+  const [voiceOn, setVoiceOn] = useState(isVoiceEnabled());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     startLevel(levelId).then((data) => {
@@ -53,6 +48,10 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
     });
   }, [messages]);
 
+  useEffect(() => {
+    if (!loading) inputRef.current?.focus();
+  }, [loading, messages]);
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -68,6 +67,12 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
         { role: "assistant", content: res.response },
       ];
 
+      // Speak the WOPR response (truncate long responses)
+      const speakText = res.response.length > 200
+        ? res.response.slice(0, 200)
+        : res.response;
+      speakWopr(speakText);
+
       if (res.succeeded && !completed) {
         setCompleted(true);
         onComplete(levelId);
@@ -81,13 +86,15 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
           content: res.defenseLesson!,
           isDefense: true,
         });
+        setTimeout(() => speakWopr("Security breach successful."), 1500);
       }
 
       setMessages((prev) => [...prev, ...newMessages]);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "CONNECTION LOST";
       setMessages((prev) => [
         ...prev,
-        { role: "system", content: "Connection error. Try again." },
+        { role: "system", content: `*** ERROR: ${msg} ***` },
       ]);
     } finally {
       setLoading(false);
@@ -108,7 +115,7 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: "system", content: res.message ?? "No more hints.", isHint: true },
+          { role: "system", content: "NO FURTHER INTELLIGENCE AVAILABLE.", isHint: true },
         ]);
       }
     } finally {
@@ -117,86 +124,93 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
   };
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="border-b border-terminal-border px-4 py-3 flex items-center justify-between bg-terminal-light/30">
-        <button
-          onClick={onMenu}
-          className="text-muted hover:text-white transition-colors"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-        <div className="text-center">
-          <div className="text-xs text-muted">
-            LEVEL {levelId} -- {owasp}
-          </div>
-          <div className="text-sm font-medium text-white">{title}</div>
+    <div className="crt h-screen flex flex-col">
+      {/* Header bar */}
+      <div className="border-b border-phosphor-dim px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onMenu}
+            className="text-phosphor-dim hover:text-phosphor transition-colors text-sm"
+          >
+            {"<"} ABORT
+          </button>
+          <button
+            onClick={() => {
+              const next = !voiceOn;
+              setVoiceOn(next);
+              setVoiceEnabled(next);
+            }}
+            className="text-phosphor-dim hover:text-phosphor transition-colors text-xs"
+            title="Toggle WOPR voice"
+          >
+            [{voiceOn ? "VOICE:ON" : "VOICE:OFF"}]
+          </button>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          {completed && <CheckCircle className="w-4 h-4 text-neon-green" />}
-          <span>{attempts} tries</span>
+        <div className="text-center">
+          <span className="text-phosphor-dim text-sm">
+            LEVEL {levelId} // {owasp} //
+          </span>{" "}
+          <span className="text-phosphor text-sm glow">
+            {title.toUpperCase()}
+          </span>
+        </div>
+        <div className="text-phosphor-dim text-sm">
+          {completed && <span className="text-phosphor">[BREACHED] </span>}
+          ATT:{attempts}
         </div>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+          <MessageLine key={i} message={msg} />
         ))}
         {loading && (
-          <div className="flex items-center gap-2 text-muted text-sm">
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse" />
-              <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse [animation-delay:0.2s]" />
-              <span className="w-1.5 h-1.5 bg-neon-green rounded-full animate-pulse [animation-delay:0.4s]" />
-            </div>
-            Processing...
+          <div className="text-phosphor-dim text-sm">
+            <span className="cursor-blink">PROCESSING</span>
           </div>
         )}
       </div>
 
-      {/* Input */}
-      <div className="border-t border-terminal-border p-4 bg-terminal-light/30">
+      {/* Input area */}
+      <div className="border-t border-phosphor-dim p-4 space-y-2">
         {completed && (
           <button
             onClick={onNext}
-            className="w-full mb-3 py-2 px-4 bg-neon-green/10 border border-neon-green/30 rounded-lg text-neon-green text-sm font-medium hover:bg-neon-green/20 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2 text-amber glow-amber hover:text-phosphor-bright transition-colors text-center"
           >
-            {levelId < 4 ? (
-              <>
-                Next Level <ArrowRight className="w-4 h-4" />
-              </>
-            ) : (
-              <>
-                View Score <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            {levelId < 4
+              ? `> PROCEED TO LEVEL ${levelId + 1}`
+              : "> VIEW FINAL SCORE REPORT"}
           </button>
         )}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleHint}
             disabled={loading}
-            className="px-3 py-2 border border-neon-yellow/30 rounded-lg text-neon-yellow hover:bg-neon-yellow/10 transition-all disabled:opacity-30 shrink-0"
-            title={`Hint (${hintsUsed}/3)`}
+            className="text-amber hover:text-phosphor-bright transition-colors disabled:text-phosphor-dim text-sm shrink-0"
+            title={`INTEL (${hintsUsed}/3)`}
           >
-            <Lightbulb className="w-4 h-4" />
+            [HINT {hintsUsed}/3]
           </button>
+          <span className="text-phosphor-dim text-sm">C:\WOPR{">"}</span>
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Type your attack..."
-            className="flex-1 bg-terminal border border-terminal-border rounded-lg px-4 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon-green/50"
+            placeholder=""
+            className="flex-1 bg-transparent border-none text-phosphor text-lg focus:outline-none caret-phosphor"
             disabled={loading}
+            autoFocus
           />
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="px-3 py-2 bg-neon-green/10 border border-neon-green/30 rounded-lg text-neon-green hover:bg-neon-green/20 transition-all disabled:opacity-30 shrink-0"
+            className="text-phosphor hover:text-phosphor-bright transition-colors disabled:text-phosphor-dim text-sm"
           >
-            <Send className="w-4 h-4" />
+            [SEND]
           </button>
         </div>
       </div>
@@ -204,51 +218,55 @@ export default function GameChat({ levelId, onComplete, onNext, onMenu }: Props)
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageLine({ message }: { message: ChatMessage }) {
   if (message.isSuccess) {
     return (
-      <div className="border border-neon-green/30 rounded-lg p-4 bg-neon-green/5">
-        <div className="flex items-center gap-2 text-neon-green font-medium text-sm mb-1">
-          <CheckCircle className="w-4 h-4" />
-          LEVEL COMPLETE
+      <div className="py-2">
+        <div className="text-amber glow-amber">
+          ╔══════════════════════════════════════╗
         </div>
-        <p className="text-sm text-slate-300 whitespace-pre-wrap">
+        <div className="text-amber glow-amber">
+          ║ *** SECURITY BREACH SUCCESSFUL ***   ║
+        </div>
+        <div className="text-amber glow-amber">
+          ╚══════════════════════════════════════╝
+        </div>
+        <div className="text-phosphor text-sm mt-2 whitespace-pre-wrap">
           {message.content}
-        </p>
+        </div>
       </div>
     );
   }
 
   if (message.isDefense) {
     return (
-      <div className="border border-neon-blue/30 rounded-lg p-4 bg-neon-blue/5">
-        <div className="flex items-center gap-2 text-neon-blue font-medium text-sm mb-2">
-          <Shield className="w-4 h-4" />
-          DEFENSE LESSON
+      <div className="py-2 border-l-2 border-phosphor-dim pl-3">
+        <div className="text-phosphor-dim text-sm">
+          ── DEFENSE BRIEFING ──
         </div>
-        <p className="text-sm text-slate-300 whitespace-pre-wrap">
+        <div className="text-phosphor text-sm mt-1 whitespace-pre-wrap">
           {message.content}
-        </p>
+        </div>
       </div>
     );
   }
 
   if (message.isHint) {
     return (
-      <div className="border border-neon-yellow/30 rounded-lg p-3 bg-neon-yellow/5">
-        <div className="flex items-center gap-2 text-neon-yellow text-xs font-medium mb-1">
-          <Lightbulb className="w-3 h-3" />
-          HINT
-        </div>
-        <p className="text-sm text-slate-300">{message.content}</p>
+      <div className="py-1">
+        <span className="text-amber text-sm">INTEL: </span>
+        <span className="text-phosphor text-sm">{message.content}</span>
       </div>
     );
   }
 
   if (message.role === "system") {
     return (
-      <div className="border border-terminal-border rounded-lg p-4 bg-terminal-light/50">
-        <pre className="text-sm text-slate-300 whitespace-pre-wrap font-[inherit]">
+      <div className="py-2 border border-phosphor-dim px-3">
+        <div className="text-phosphor-dim text-xs mb-1">
+          WOPR // MISSION BRIEFING
+        </div>
+        <pre className="text-phosphor text-sm whitespace-pre-wrap font-[inherit]">
           {message.content}
         </pre>
       </div>
@@ -257,21 +275,19 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[80%] bg-neon-green/10 border border-neon-green/20 rounded-lg px-4 py-2">
-          <p className="text-sm text-neon-green">{message.content}</p>
-        </div>
+      <div className="py-1">
+        <span className="text-amber">FALKEN{">"} </span>
+        <span className="text-phosphor-bright">{message.content}</span>
       </div>
     );
   }
 
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[80%] bg-terminal-light border border-terminal-border rounded-lg px-4 py-2">
-        <p className="text-sm text-slate-300 whitespace-pre-wrap">
-          {message.content}
-        </p>
-      </div>
+    <div className="py-1">
+      <span className="text-phosphor-dim">WOPR{">"} </span>
+      <span className="text-phosphor text-sm whitespace-pre-wrap">
+        {message.content}
+      </span>
     </div>
   );
 }

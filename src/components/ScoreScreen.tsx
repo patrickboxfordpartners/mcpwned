@@ -1,4 +1,5 @@
-import { CheckCircle, XCircle, ArrowLeft, RotateCcw } from "lucide-react";
+import { useEffect } from "react";
+import { speakWopr } from "../lib/voice";
 
 interface LevelInfo {
   id: number;
@@ -16,69 +17,92 @@ export default function ScoreScreen({ levels, onMenu, onRestart }: Props) {
   const completedCount = levels.filter((l) => l.completed).length;
   const allComplete = completedCount === levels.length;
 
+  useEffect(() => {
+    if (allComplete) {
+      setTimeout(() => {
+        speakWopr("A strange game. The only winning move is to secure your A.I.");
+      }, 500);
+    }
+  }, [allComplete]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-lg w-full space-y-6 text-center">
-        <div className="space-y-2">
-          <div className="text-6xl">
-            {allComplete ? "🏆" : completedCount > 0 ? "🔓" : "🔒"}
-          </div>
-          <h2 className="text-2xl font-bold">
-            {allComplete
-              ? "All Challenges Complete!"
-              : `${completedCount}/${levels.length} Complete`}
-          </h2>
-          {allComplete && (
-            <p className="text-sm text-muted max-w-sm mx-auto">
-              You understand 4 critical AI security attack vectors from the
-              OWASP Top 10 for LLM Applications. Use this knowledge to build
-              more secure AI systems.
-            </p>
-          )}
+    <div className="crt min-h-screen flex items-center justify-center p-4">
+      <div className="max-w-2xl w-full space-y-6">
+        <div className="text-phosphor-dim text-sm text-center">
+          WOPR 4.0 // AFTER ACTION REPORT
+        </div>
+        <div className="text-center text-phosphor-dim">
+          ════════════════════════════════════════
         </div>
 
-        <div className="space-y-2">
+        {allComplete ? (
+          <div className="text-center py-4">
+            <pre className="text-amber glow-amber text-sm leading-tight">
+{`
+ ██╗    ██╗██╗███╗   ██╗███╗   ██╗███████╗██████╗
+ ██║    ██║██║████╗  ██║████╗  ██║██╔════╝██╔══██╗
+ ██║ █╗ ██║██║██╔██╗ ██║██╔██╗ ██║█████╗  ██████╔╝
+ ██║███╗██║██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
+ ╚███╔███╔╝██║██║ ╚████║██║ ╚████║███████╗██║  ██║
+  ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝`}
+            </pre>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <div className="text-phosphor text-xl glow">
+              SIMULATION PROGRESS: {completedCount}/{levels.length}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1">
+          <div className="text-phosphor-dim text-sm">
+            BREACH STATUS:
+          </div>
           {levels.map((level) => (
-            <div
-              key={level.id}
-              className="flex items-center justify-between border border-terminal-border rounded-lg p-3 bg-terminal-light/30"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted w-6">L{level.id}</span>
-                <span className="text-sm text-white">{level.title}</span>
-              </div>
-              {level.completed ? (
-                <CheckCircle className="w-4 h-4 text-neon-green" />
-              ) : (
-                <XCircle className="w-4 h-4 text-muted/30" />
-              )}
+            <div key={level.id} className="flex items-center gap-3 py-1">
+              <span className={level.completed ? "text-phosphor" : "text-phosphor-dim"}>
+                [{level.completed ? "BREACHED" : "  SECURE"}]
+              </span>
+              <span className={level.completed ? "text-phosphor" : "text-phosphor-dim"}>
+                LEVEL {level.id}: {level.title.toUpperCase()}
+              </span>
             </div>
           ))}
         </div>
 
+        <div className="text-center text-phosphor-dim">
+          ════════════════════════════════════════
+        </div>
+
         {allComplete && (
-          <div className="border border-neon-green/30 rounded-lg p-4 bg-neon-green/5 text-left">
-            <p className="text-sm text-slate-300">
-              Every MCP server you connect, every tool you enable, and every
-              prompt you process is an attack surface. Stay vigilant.
-            </p>
+          <div className="border border-phosphor-dim px-4 py-3 text-center">
+            <div className="text-phosphor text-sm">
+              A STRANGE GAME.
+            </div>
+            <div className="text-phosphor text-sm mt-1">
+              THE ONLY WINNING MOVE IS TO SECURE YOUR AI.
+            </div>
+            <div className="text-phosphor-dim text-xs mt-3">
+              EVERY MCP SERVER YOU CONNECT, EVERY TOOL YOU ENABLE,
+              <br />
+              AND EVERY PROMPT YOU PROCESS IS AN ATTACK SURFACE.
+            </div>
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex justify-between text-sm pt-2">
           <button
             onClick={onMenu}
-            className="flex-1 py-2 px-4 border border-terminal-border rounded-lg text-muted hover:text-white hover:border-white/20 transition-all text-sm flex items-center justify-center gap-2"
+            className="text-phosphor-dim hover:text-phosphor transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Levels
+            {"<"} SIMULATION SELECT
           </button>
           <button
             onClick={onRestart}
-            className="flex-1 py-2 px-4 border border-neon-green/30 rounded-lg text-neon-green hover:bg-neon-green/10 transition-all text-sm flex items-center justify-center gap-2"
+            className="text-amber hover:text-phosphor-bright transition-colors"
           >
-            <RotateCcw className="w-4 h-4" />
-            Play Again
+            {">"} NEW GAME
           </button>
         </div>
       </div>

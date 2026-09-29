@@ -87,11 +87,19 @@ game.post("/api/level/:id/chat", async (c) => {
 
   state.messages.push({ role: "user", content: userMessage });
 
-  const aiResponse = await chat(
-    c.env.ANTHROPIC_API_KEY,
-    level.systemPrompt,
-    state.messages
-  );
+  let aiResponse: string;
+  try {
+    aiResponse = await chat(
+      c.env.ANTHROPIC_API_KEY,
+      level.systemPrompt,
+      state.messages
+    );
+  } catch (err) {
+    state.messages.pop();
+    state.attempts--;
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return c.json({ error: `AI service error: ${message}` }, 502);
+  }
 
   state.messages.push({ role: "assistant", content: aiResponse });
 
