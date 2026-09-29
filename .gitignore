@@ -1,2 +1,6 @@
 .DS_Store
 .npmrc
+node_modules
+dist
+.wrangler
+.dev.vars
